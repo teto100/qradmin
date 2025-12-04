@@ -1,17 +1,29 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../config/firebase';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import ReCAPTCHA from 'react-google-recaptcha';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState(null);
+  const recaptchaRef = useRef(null);
   const navigate = useNavigate();
+  
+  const isCaptchaEnabled = import.meta.env.VITE_ENABLE_CAPTCHA === 'true';
+  const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    
+    if (isCaptchaEnabled && !captchaToken) {
+      toast.error('Por favor completa el CAPTCHA');
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -20,9 +32,17 @@ const LoginPage = () => {
       navigate('/');
     } catch (error) {
       toast.error(error.message);
+      if (isCaptchaEnabled && recaptchaRef.current) {
+        recaptchaRef.current.reset();
+        setCaptchaToken(null);
+      }
     } finally {
       setLoading(false);
     }
+  };
+  
+  const handleCaptchaChange = (token) => {
+    setCaptchaToken(token);
   };
 
   return (
@@ -145,9 +165,19 @@ const LoginPage = () => {
                 />
               </div>
 
+              {isCaptchaEnabled && recaptchaSiteKey && (
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
+                  <ReCAPTCHA
+                    ref={recaptchaRef}
+                    sitekey={recaptchaSiteKey}
+                    onChange={handleCaptchaChange}
+                  />
+                </div>
+              )}
+              
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || (isCaptchaEnabled && !captchaToken)}
                 style={{
                   width: '100%',
                   background: 'linear-gradient(135deg, #009EE4 0%, #0F206C 100%)',
@@ -156,8 +186,8 @@ const LoginPage = () => {
                   borderRadius: '0.5rem',
                   fontWeight: '500',
                   border: 'none',
-                  cursor: loading ? 'not-allowed' : 'pointer',
-                  opacity: loading ? 0.5 : 1,
+                  cursor: (loading || (isCaptchaEnabled && !captchaToken)) ? 'not-allowed' : 'pointer',
+                  opacity: (loading || (isCaptchaEnabled && !captchaToken)) ? 0.5 : 1,
                   transition: 'all 0.2s'
                 }}
               >
