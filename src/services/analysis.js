@@ -1,4 +1,6 @@
 import { analyzeTextMetrics, analyzeTimingPatterns, detectPatterns } from '../utils/textAnalysis';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../config/firebase';
 
 // Score final ponderado
 const calculateFinalScore = ({ temporal, patterns, ai }) => {
@@ -25,31 +27,68 @@ export const analyzeResponse = async (response, question) => {
     const patternIndicators = detectPatterns(response.answer);
     const patternScore = patternIndicators.length * 20; // Score basado en indicadores
     
-    // 4. Para desarrollo, simulamos análisis de IA
-    // En producción, esto debería llamar a Cloud Functions
-    const mockAIAnalysis = {
-      score: Math.min(50 + Math.random() * 40, 100), // Score aleatorio para demo
-      confidence: 'medium',
-      indicators: ['mock_analysis'],
-      reasoning: 'Análisis simulado para desarrollo'
+    // 4. Buscar respuesta modelo en Firebase
+    let modelAnswer = null;
+    try {
+      const answersQuery = query(
+        collection(db, 'respuestas'),
+        where('questionOrder', '==', response.questionNumber || 1),
+        where('active', '==', true)
+      );
+      const answersSnapshot = await getDocs(answersQuery);
+      
+      if (!answersSnapshot.empty) {
+        modelAnswer = answersSnapshot.docs[0].data();
+      }
+    } catch (error) {
+      // Continuar sin respuesta modelo
+    }
+    
+    // 5. Análisis comparativo con respuesta modelo
+    let aiScore = 50; // Score por defecto
+    let reasoning = 'Análisis básico sin respuesta modelo';
+    
+    if (modelAnswer) {
+      const userAnswer = response.answer.toLowerCase();
+      const keyPoints = modelAnswer.keyPoints || [];
+      
+      // Contar puntos clave mencionados
+      const foundPoints = keyPoints.filter(point => 
+        userAnswer.includes(point.toLowerCase())
+      );
+      
+      // Calcular score basado en cobertura
+      const coverage = keyPoints.length > 0 ? foundPoints.length / keyPoints.length : 0;
+      aiScore = Math.round(coverage * 100);
+      
+      reasoning = `Cobertura: ${foundPoints.length}/${keyPoints.length} puntos clave encontrados`;
+    }
+    
+    const aiAnalysis = {
+      score: aiScore,
+      confidence: modelAnswer ? 'high' : 'low',
+      indicators: modelAnswer ? [`coverage: ${aiScore}%`] : ['no_model_answer'],
+      reasoning,
+      modelAnswer
     };
     
-    // 5. Calcular score final
+    // 6. Calcular score final
     const finalScore = calculateFinalScore({
       temporal: temporalScore,
       patterns: patternScore,
-      ai: mockAIAnalysis.score
+      ai: aiAnalysis.score
     });
     
     return {
       score: Math.min(finalScore, 100),
-      confidence: mockAIAnalysis.confidence,
+      confidence: aiAnalysis.confidence,
       indicators: [
         ...patternIndicators,
-        ...mockAIAnalysis.indicators
+        ...aiAnalysis.indicators
       ],
-      reasoning: mockAIAnalysis.reasoning,
-      metadata: textMetrics
+      reasoning: aiAnalysis.reasoning,
+      metadata: textMetrics,
+      modelComparison: aiAnalysis.modelAnswer
     };
   } catch (error) {
     // Error en análisis - silenciado en producción

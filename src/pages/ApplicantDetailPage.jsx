@@ -5,6 +5,7 @@ import { db } from '../config/firebase';
 import { ArrowLeft, User, Calendar, Clock, AlertTriangle, LogIn } from 'lucide-react';
 import AIScoreBadge from '../components/AIScoreBadge';
 import { logger } from '../utils/logger';
+import { calculateAutoAnalysis } from '../services/scoringService';
 
 const ApplicantDetailPage = () => {
   const { id } = useParams();
@@ -170,56 +171,87 @@ const ApplicantDetailPage = () => {
     return Math.max(10, Math.min(95, humanScore));
   };
 
-  const calculateAutoAnalysis = (answer, modelAnswer) => {
-    if (!answer || !modelAnswer) return 0;
+  const calculateAutoAnalysisLocal = (answer, modelAnswer) => {
+    console.log('🔍 Iniciando análisis automático');
+    console.log('📝 Respuesta usuario:', answer);
+    console.log('📋 Respuesta modelo:', modelAnswer);
+    
+    if (!answer || !modelAnswer) {
+      console.log('❌ Sin respuesta o modelo');
+      return 0;
+    }
     
     const userText = answer.toLowerCase();
     const expectedText = modelAnswer.correctAnswer.toLowerCase();
     const keyPoints = modelAnswer.keyPoints || [];
     
-
+    console.log('🔑 Puntos clave esperados:', keyPoints);
+    console.log('📄 Texto usuario normalizado:', userText);
     
     let score = 0;
     
     // Criterio 1: Puntos clave (50% del puntaje total)
     let keyPointsFound = 0;
+    const foundPoints = [];
+    const missingPoints = [];
+    
+    // Sinónimos para puntos clave
+    const synonyms = {
+      'memoria': ['ligero', 'recursos', 'consume menos'],
+      'cloud native': ['nube', 'enfocado para nube', 'cloud'],
+      'rapido': ['cold start', 'velocidad', 'rápido', 'performance'],
+      'asincrono': ['desacoplar', 'no afecte', 'independiente', 'paralelo'],
+      'merchant id': ['codigo del comercio', 'comercio', 'merchant'],
+      'checksum': ['validar', 'verificar', 'integridad'],
+      'payload': ['datos', 'información', 'contenido'],
+      'crc': ['validación', 'verificación']
+    };
+    
     keyPoints.forEach(point => {
-      const found = userText.includes(point.toLowerCase());
+      const pointLower = point.toLowerCase();
+      let found = userText.includes(pointLower);
+      
+      // Si no se encuentra directamente, buscar sinónimos
+      if (!found && synonyms[pointLower]) {
+        found = synonyms[pointLower].some(synonym => userText.includes(synonym));
+      }
+      
       if (found) {
         keyPointsFound++;
+        foundPoints.push(point);
+      } else {
+        missingPoints.push(point);
       }
     });
     
+    console.log('✅ Puntos encontrados:', foundPoints);
+    console.log('❌ Puntos faltantes:', missingPoints);
+    
     const keyPointsPercentage = keyPoints.length > 0 ? (keyPointsFound / keyPoints.length) : 0;
+    console.log('📊 Porcentaje puntos clave:', keyPointsPercentage * 100 + '%');
     
-    // Nuevo sistema de puntos clave
-    let keyPointsScore = 0;
-    if (keyPointsPercentage === 1.0) {
-      keyPointsScore = 5; // 100% puntos clave = 50% respuesta (5/10)
-    } else if (keyPointsPercentage >= 0.5) {
-      keyPointsScore = 2.5; // ≥50% puntos clave = 25% respuesta (2.5/10)
-    } else if (keyPointsPercentage > 0) {
-      keyPointsScore = 1.5; // <50% pero >0% = 15% respuesta (1.5/10)
-    } else {
-      keyPointsScore = 0; // 0% puntos clave = 0% respuesta (0/10)
-    }
+    // Sistema de puntos clave proporcional
+    let keyPointsScore = keyPointsPercentage * 5; // 0-100% → 0-5 puntos
     
+    console.log('🎯 Score por puntos clave:', keyPointsScore);
     score += keyPointsScore;
     
 
     
     // Criterio 2: Similitud con respuesta esperada (50% restante)
+    let similarityScore = 0;
     if (keyPointsPercentage >= 0.25) {
-      const expectedWords = expectedText.split(' ').filter(word => word.length > 3);
+      const expectedWords = expectedText.split(' ').filter(word => word.length > 2);
       let similarWords = 0;
+      
+      console.log('🔍 Palabras esperadas:', expectedWords);
       
       expectedWords.forEach(word => {
         if (userText.includes(word)) {
           similarWords++;
+          console.log('✅ Palabra encontrada:', word);
         }
       });
-      
-
       
       // Buscar conceptos similares
       const conceptMatches = [
@@ -228,7 +260,11 @@ const ApplicantDetailPage = () => {
         { expected: ['errores', 'error'], user: ['exito', 'éxito', 'transacional'] },
         { expected: ['latencia'], user: ['tiempo', 'respuesta', 'velocidad'] },
         { expected: ['monitoreo', 'métricas'], user: ['monitoreo', 'seguimiento', 'control'] },
-        { expected: ['rollout', 'despliegue'], user: ['rollout', 'despliegue', 'implementación'] }
+        { expected: ['rollout', 'despliegue'], user: ['rollout', 'despliegue', 'implementación'] },
+        { expected: ['memoria'], user: ['ligero', 'recursos', 'consume menos'] },
+        { expected: ['cloud native'], user: ['nube', 'enfocado para nube', 'cloud'] },
+        { expected: ['rapido'], user: ['cold start', 'velocidad', 'rápido', 'performance'] },
+        { expected: ['asincrono'], user: ['desacoplar', 'no afecte', 'independiente', 'paralelo'] }
       ];
       
       let conceptBonus = 0;
@@ -238,17 +274,29 @@ const ApplicantDetailPage = () => {
         if (hasExpected && hasUser) {
           similarWords += 2;
           conceptBonus += 2;
+          console.log('🎆 Concepto bonus encontrado:', concept);
         }
       });
       
       const textSimilarity = expectedWords.length > 0 ? (similarWords / expectedWords.length) : 0;
+      console.log('📊 Similitud de texto:', textSimilarity * 100 + '%');
       
       if (textSimilarity >= 0.25) {
-        score += 5;
+        similarityScore = 5;
+        console.log('✅ Score por similitud otorgado: 5');
+      } else {
+        console.log('❌ Score por similitud no otorgado (< 25%)');
       }
+    } else {
+      console.log('⚠️ Similitud omitida (puntos clave < 25%)');
     }
     
+    score += similarityScore;
+    
     const finalScore = Math.round(Math.max(0, Math.min(10, score)));
+    
+    console.log('🏆 Score final calculado:', finalScore);
+    console.log('='.repeat(50));
     
     return finalScore;
   };

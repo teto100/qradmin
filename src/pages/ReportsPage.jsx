@@ -5,6 +5,7 @@ import { Download, Trophy, AlertTriangle, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { logger } from '../utils/logger';
+import { calculateAutoAnalysis } from '../services/scoringService';
 
 const ReportsPage = () => {
   const [testTypes, setTestTypes] = useState([]);
@@ -252,6 +253,10 @@ const ReportsPage = () => {
   };
   
   const calculateQuestionScore = (answer, modelAnswer) => {
+    return calculateAutoAnalysis(answer, modelAnswer);
+  };
+  
+  const calculateQuestionScoreOld = (answer, modelAnswer) => {
     if (!answer || !modelAnswer) return 0;
     
     const userText = answer.toLowerCase();
@@ -262,31 +267,43 @@ const ReportsPage = () => {
     
     // Criterio 1: Puntos clave (50% del puntaje total)
     let keyPointsFound = 0;
+    
+    // Sinónimos para puntos clave
+    const synonyms = {
+      'memoria': ['ligero', 'recursos', 'consume menos'],
+      'cloud native': ['nube', 'enfocado para nube', 'cloud'],
+      'rapido': ['cold start', 'velocidad', 'rápido', 'performance'],
+      'asincrono': ['desacoplar', 'no afecte', 'independiente', 'paralelo'],
+      'merchant id': ['codigo del comercio', 'comercio', 'merchant'],
+      'checksum': ['validar', 'verificar', 'integridad'],
+      'payload': ['datos', 'información', 'contenido'],
+      'crc': ['validación', 'verificación']
+    };
+    
     keyPoints.forEach(point => {
-      if (userText.includes(point.toLowerCase())) {
+      const pointLower = point.toLowerCase();
+      let found = userText.includes(pointLower);
+      
+      // Si no se encuentra directamente, buscar sinónimos
+      if (!found && synonyms[pointLower]) {
+        found = synonyms[pointLower].some(synonym => userText.includes(synonym));
+      }
+      
+      if (found) {
         keyPointsFound++;
       }
     });
     
     const keyPointsPercentage = keyPoints.length > 0 ? (keyPointsFound / keyPoints.length) : 0;
     
-    // Nuevo sistema de puntos clave
-    let keyPointsScore = 0;
-    if (keyPointsPercentage === 1.0) {
-      keyPointsScore = 5; // 100% puntos clave = 50% respuesta (5/10)
-    } else if (keyPointsPercentage >= 0.5) {
-      keyPointsScore = 2.5; // ≥50% puntos clave = 25% respuesta (2.5/10)
-    } else if (keyPointsPercentage > 0) {
-      keyPointsScore = 1.5; // <50% pero >0% = 15% respuesta (1.5/10)
-    } else {
-      keyPointsScore = 0; // 0% puntos clave = 0% respuesta (0/10)
-    }
+    // Sistema de puntos clave proporcional
+    let keyPointsScore = keyPointsPercentage * 5; // 0-100% → 0-5 puntos
     
     score += keyPointsScore;
     
     // Criterio 2: Similitud con respuesta esperada (50% restante)
     if (keyPointsPercentage >= 0.25) {
-      const expectedWords = expectedText.split(' ').filter(word => word.length > 3);
+      const expectedWords = expectedText.split(' ').filter(word => word.length > 2);
       let similarWords = 0;
       
       expectedWords.forEach(word => {
@@ -302,7 +319,11 @@ const ReportsPage = () => {
         { expected: ['errores', 'error'], user: ['exito', 'éxito', 'transacional'] },
         { expected: ['latencia'], user: ['tiempo', 'respuesta', 'velocidad'] },
         { expected: ['monitoreo', 'métricas'], user: ['monitoreo', 'seguimiento', 'control'] },
-        { expected: ['rollout', 'despliegue'], user: ['rollout', 'despliegue', 'implementación'] }
+        { expected: ['rollout', 'despliegue'], user: ['rollout', 'despliegue', 'implementación'] },
+        { expected: ['memoria'], user: ['ligero', 'recursos', 'consume menos'] },
+        { expected: ['cloud native'], user: ['nube', 'enfocado para nube', 'cloud'] },
+        { expected: ['rapido'], user: ['cold start', 'velocidad', 'rápido', 'performance'] },
+        { expected: ['asincrono'], user: ['desacoplar', 'no afecte', 'independiente', 'paralelo'] }
       ];
       
       conceptMatches.forEach(concept => {
