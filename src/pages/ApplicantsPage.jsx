@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import AIScoreBadge from '../components/AIScoreBadge';
 import { Eye, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { logger } from '../utils/logger';
 
 const ApplicantsPage = () => {
   const [applicants, setApplicants] = useState([]);
@@ -60,7 +61,7 @@ const ApplicantsPage = () => {
         
         setApplicants(applicantsData);
       } catch (error) {
-        console.error('Error fetching applicants:', error);
+        logger.error('Error fetching applicants:', error);
         toast.error('Error al cargar postulantes. Reintentando...');
         // Reintentar después de 2 segundos
         setTimeout(() => {

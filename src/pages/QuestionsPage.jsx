@@ -3,6 +3,7 @@ import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, o
 import { db, auth } from '../config/firebase';
 import { Plus, Edit, Trash2, FileText, Settings } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { logger } from '../utils/logger';
 
 const QuestionsPage = () => {
   const [testTypes, setTestTypes] = useState([]);
@@ -52,7 +53,7 @@ const QuestionsPage = () => {
         setSelectedTestType(types[0].code);
       }
     } catch (error) {
-      console.error('Error fetching test types:', error);
+      logger.error('Error fetching test types:', error);
       toast.error('Error al cargar tipos de prueba');
     } finally {
       setLoading(false);
@@ -73,7 +74,7 @@ const QuestionsPage = () => {
       })).sort((a, b) => a.order - b.order);
       setQuestions(questionsData);
     } catch (error) {
-      console.error('Error fetching questions:', error);
+      logger.error('Error fetching questions:', error);
       toast.error('Error al cargar preguntas');
     }
   };
@@ -93,7 +94,7 @@ const QuestionsPage = () => {
       setTestTypeForm({ name: '', code: '', description: '', questionCount: 7, timeLimit: 1800 });
       fetchTestTypes();
     } catch (error) {
-      console.error('Error creating test type:', error);
+      logger.error('Error creating test type:', error);
       toast.error('Error al crear tipo de prueba');
     }
   };
@@ -114,7 +115,7 @@ const QuestionsPage = () => {
       setQuestionForm({ questionText: '', order: 1, category: 'technical', expectedAnswerLength: 200 });
       fetchQuestions(selectedTestType);
     } catch (error) {
-      console.error('Error creating question:', error);
+      logger.error('Error creating question:', error);
       toast.error('Error al crear pregunta');
     }
   };
@@ -126,7 +127,7 @@ const QuestionsPage = () => {
         toast.success('Pregunta eliminada');
         fetchQuestions(selectedTestType);
       } catch (error) {
-        console.error('Error deleting question:', error);
+        logger.error('Error deleting question:', error);
         toast.error('Error al eliminar pregunta');
       }
     }

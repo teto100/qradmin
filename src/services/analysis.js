@@ -52,7 +52,7 @@ export const analyzeResponse = async (response, question) => {
       metadata: textMetrics
     };
   } catch (error) {
-    console.error('Error en análisis:', error);
+    // Error en análisis - silenciado en producción
     return {
       score: 50,
       confidence: 'low',

@@ -31,7 +31,7 @@ const LoginPage = () => {
       toast.success('Inicio de sesión exitoso');
       navigate('/');
     } catch (error) {
-      toast.error(error.message);
+      toast.error('Credenciales incorrectas. Verifica tu email y contraseña.');
       if (isCaptchaEnabled && recaptchaRef.current) {
         recaptchaRef.current.reset();
         setCaptchaToken(null);

@@ -3,6 +3,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { Settings, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { logger } from '../utils/logger';
 
 const SettingsPage = () => {
   const [settings, setSettings] = useState({
@@ -28,7 +29,7 @@ const SettingsPage = () => {
         setSettings({ ...settings, ...docSnap.data() });
       }
     } catch (error) {
-      console.error('Error fetching settings:', error);
+      logger.error('Error fetching settings:', error);
     } finally {
       setLoading(false);
     }
@@ -41,7 +42,7 @@ const SettingsPage = () => {
       await setDoc(docRef, settings);
       toast.success('Configuración guardada exitosamente');
     } catch (error) {
-      console.error('Error saving settings:', error);
+      logger.error('Error saving settings:', error);
       toast.error('Error al guardar configuración');
     } finally {
       setSaving(false);

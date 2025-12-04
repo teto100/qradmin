@@ -3,6 +3,7 @@ import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore
 import { db } from '../config/firebase';
 import { Users, Clock, CheckCircle, AlertTriangle, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { logger } from '../utils/logger';
 
 const DashboardPage = () => {
   const [stats, setStats] = useState({
@@ -113,7 +114,7 @@ const DashboardPage = () => {
 
         setStats(finalStats);
       } catch (error) {
-        console.error('Error fetching stats:', error);
+        logger.error('Error fetching stats:', error);
       } finally {
         setLoading(false);
       }
@@ -163,7 +164,7 @@ const DashboardPage = () => {
       toast.success('Datos de prueba creados exitosamente');
       window.location.reload();
     } catch (error) {
-      console.error('Error creating sample data:', error);
+      logger.error('Error creating sample data:', error);
       toast.error('Error al crear datos de prueba');
     } finally {
       setCreating(false);

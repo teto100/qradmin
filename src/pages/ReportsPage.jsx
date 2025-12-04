@@ -4,6 +4,7 @@ import { db } from '../config/firebase';
 import { Download, Trophy, AlertTriangle, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { logger } from '../utils/logger';
 
 const ReportsPage = () => {
   const [testTypes, setTestTypes] = useState([]);
@@ -31,7 +32,7 @@ const ReportsPage = () => {
       }));
       setTestTypes(types);
     } catch (error) {
-      console.error('Error fetching test types:', error);
+      logger.error('Error fetching test types:', error);
       toast.error('Error al cargar tipos de prueba');
     } finally {
       setLoading(false);
@@ -86,7 +87,7 @@ const ReportsPage = () => {
           settings = { ...settings, ...settingsData };
         }
       } catch (error) {
-        console.log('Using default settings');
+        logger.log('Using default settings');
       }
       
       // Calcular puntaje y ordenar por ranking
@@ -101,7 +102,7 @@ const ReportsPage = () => {
       rankedResponses.sort((a, b) => b.totalScore - a.totalScore);
       setResponses(rankedResponses);
     } catch (error) {
-      console.error('Error fetching responses:', error);
+      logger.error('Error fetching responses:', error);
       toast.error('Error al cargar respuestas');
     }
   };
@@ -188,8 +189,8 @@ const ReportsPage = () => {
     let totalScore = 0;
     const pointsPerQuestion = 20 / totalQuestions; // 2.857 puntos por pregunta
     
-    console.log(`=== CÁLCULO PUNTAJE FINAL - ${response.name} (${response.dni}) ===`);
-    console.log(`Preguntas totales: ${totalQuestions}, Puntos por pregunta: ${pointsPerQuestion.toFixed(3)}`);
+    logger.log(`=== CÁLCULO PUNTAJE FINAL - ${response.name} (${response.dni}) ===`);
+    logger.log(`Preguntas totales: ${totalQuestions}, Puntos por pregunta: ${pointsPerQuestion.toFixed(3)}`);
     
     for (let i = 0; i < totalQuestions; i++) {
       const userAnswer = response.answers[i] || '';
@@ -200,12 +201,12 @@ const ReportsPage = () => {
         const questionPoints = (questionScore / 10) * pointsPerQuestion; // Proporcional
         totalScore += questionPoints;
         
-        console.log(`Pregunta ${i + 1}: ${questionScore}/10 = ${questionPoints.toFixed(2)} puntos`);
+        logger.log(`Pregunta ${i + 1}: ${questionScore}/10 = ${questionPoints.toFixed(2)} puntos`);
       }
     }
     
-    console.log(`PUNTAJE TOTAL: ${totalScore.toFixed(1)}/20`);
-    console.log('=== FIN CÁLCULO ===\n');
+    logger.log(`PUNTAJE TOTAL: ${totalScore.toFixed(1)}/20`);
+    logger.log('=== FIN CÁLCULO ===\n');
     
     return Math.round(totalScore * 10) / 10; // Redondear a 1 decimal
   };

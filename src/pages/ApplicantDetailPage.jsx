@@ -4,6 +4,7 @@ import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firesto
 import { db } from '../config/firebase';
 import { ArrowLeft, User, Calendar, Clock, AlertTriangle, LogIn } from 'lucide-react';
 import AIScoreBadge from '../components/AIScoreBadge';
+import { logger } from '../utils/logger';
 
 const ApplicantDetailPage = () => {
   const { id } = useParams();
@@ -73,7 +74,7 @@ const ApplicantDetailPage = () => {
           setQuestions(questionsData);
         }
       } catch (error) {
-        console.error('Error fetching applicant:', error);
+        logger.error('Error fetching applicant:', error);
       } finally {
         setLoading(false);
       }

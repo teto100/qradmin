@@ -3,6 +3,7 @@ import { collection, getDocs, addDoc, updateDoc, doc, query, where, serverTimest
 import { db, auth } from '../config/firebase';
 import { Plus, Edit, FileText, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { logger } from '../utils/logger';
 
 const AnswersPage = () => {
   const [testTypes, setTestTypes] = useState([]);
@@ -47,7 +48,7 @@ const AnswersPage = () => {
         setSelectedTestType(types[0].code);
       }
     } catch (error) {
-      console.error('Error fetching test types:', error);
+      logger.error('Error fetching test types:', error);
       toast.error('Error al cargar tipos de prueba');
     } finally {
       setLoading(false);
@@ -68,7 +69,7 @@ const AnswersPage = () => {
       })).sort((a, b) => a.order - b.order);
       setQuestions(questionsData);
     } catch (error) {
-      console.error('Error fetching questions:', error);
+      logger.error('Error fetching questions:', error);
       toast.error('Error al cargar preguntas');
     }
   };
@@ -87,7 +88,7 @@ const AnswersPage = () => {
       }));
       setAnswers(answersData);
     } catch (error) {
-      console.error('Error fetching answers:', error);
+      logger.error('Error fetching answers:', error);
       toast.error('Error al cargar respuestas');
     }
   };
@@ -123,7 +124,7 @@ const AnswersPage = () => {
       resetForm();
       fetchAnswers(selectedTestType);
     } catch (error) {
-      console.error('Error saving answer:', error);
+      logger.error('Error saving answer:', error);
       toast.error('Error al guardar respuesta');
     }
   };
