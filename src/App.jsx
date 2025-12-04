@@ -5,6 +5,7 @@ import { auth } from './config/firebase';
 
 import Sidebar from './components/Sidebar';
 import ProtectedRoute from './components/ProtectedRoute';
+import SessionChecker from './components/SessionChecker';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import ApplicantsPage from './pages/ApplicantsPage';
@@ -16,6 +17,8 @@ import SettingsPage from './pages/SettingsPage';
 
 function App() {
   const [user, loading] = useAuthState(auth);
+
+
 
   if (loading) {
     return (
@@ -32,8 +35,9 @@ function App() {
 
   return (
     <Router>
-      <div className="App">
-        <Toaster position="top-right" />
+      <SessionChecker>
+        <div className="App">
+          <Toaster position="top-right" />
         
         {user ? (
           <div className="flex">
@@ -83,7 +87,8 @@ function App() {
             <Route path="*" element={<LoginPage />} />
           </Routes>
         )}
-      </div>
+        </div>
+      </SessionChecker>
     </Router>
   );
 }

@@ -4,6 +4,9 @@ import { auth } from '../config/firebase';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import ReCAPTCHA from 'react-google-recaptcha';
+import LoginLogger from '../services/loginLogger';
+import { setLastLoginTime } from '../services/sessionManager';
+import { initLoginLogsCollection, initAppConfig } from '../utils/initFirebase';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -27,10 +30,26 @@ const LoginPage = () => {
     setLoading(true);
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      
+      // Inicializar colecciones después del login exitoso
+      try {
+        await initLoginLogsCollection();
+        await initAppConfig();
+      } catch (initError) {
+        // Ignorar si ya existen
+      }
+      
+      // Registrar login exitoso en Firebase
+      await LoginLogger.logLogin(userCredential.user.email);
+      setLastLoginTime();
+      
       toast.success('Inicio de sesión exitoso');
       navigate('/');
     } catch (error) {
+      // Registrar intento fallido en Firebase
+      await LoginLogger.logFailedLogin(email, error.code);
+      
       toast.error('Credenciales incorrectas. Verifica tu email y contraseña.');
       if (isCaptchaEnabled && recaptchaRef.current) {
         recaptchaRef.current.reset();
