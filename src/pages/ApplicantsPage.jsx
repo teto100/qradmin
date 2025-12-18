@@ -1,79 +1,112 @@
 import { useState, useEffect } from 'react';
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '../config/firebase';
 import { useNavigate } from 'react-router-dom';
 import AIScoreBadge from '../components/AIScoreBadge';
-import { Eye, Filter } from 'lucide-react';
+import { Eye, Filter, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { logger } from '../utils/logger';
 
 const ApplicantsPage = () => {
   const [applicants, setApplicants] = useState([]);
+  const [testTypes, setTestTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [createForm, setCreateForm] = useState({ dni: '', name: '', code: '' });
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchApplicants = async () => {
-      try {
-        // Obtener postulantes registrados
-        const postulanteRef = collection(db, 'postulante');
-        const postulanteSnapshot = await getDocs(postulanteRef);
-        
-        // Obtener respuestas de pruebas
-        const responsesRef = collection(db, 'responses');
-        const responsesSnapshot = await getDocs(responsesRef);
-        
-        // Crear mapa de respuestas por DNI
-        const responsesMap = new Map();
-        responsesSnapshot.docs.forEach(doc => {
-          const data = doc.data();
-          if (data.dni) {
-            responsesMap.set(data.dni, {
-              id: doc.id,
-              submittedAt: data.submittedAt,
-              aiAnalysis: data.aiAnalysis,
-              hasTest: true
-            });
-          }
-        });
-        
-        // Combinar datos
-        const applicantsData = postulanteSnapshot.docs.map(doc => {
-          const postulanteData = doc.data();
-          const dni = postulanteData.dni;
-          const responseData = responsesMap.get(dni);
-          
-          return {
-            id: responseData?.id || doc.id,
-            name: postulanteData.name || 'Sin nombre',
-            email: dni || 'Sin DNI',
-            appliedAt: responseData?.submittedAt || postulanteData.createdAt,
-            status: responseData ? 
-              (responseData.aiAnalysis?.finalAssessment?.riskLevel || 'completed') : 
-              'not_tested',
-            overallAIScore: responseData?.aiAnalysis?.serverResults?.length > 0 
-              ? Math.round(responseData.aiAnalysis.serverResults.reduce((sum, result) => sum + (result.score || 0), 0) / responseData.aiAnalysis.serverResults.length)
-              : 0,
-            hasTest: !!responseData
-          };
-        });
-        
-        setApplicants(applicantsData);
-      } catch (error) {
-        logger.error('Error fetching applicants:', error);
-        toast.error('Error al cargar postulantes. Reintentando...');
-        // Reintentar después de 2 segundos
-        setTimeout(() => {
-          fetchApplicants();
-        }, 2000);
-      } finally {
-        setLoading(false);
-      }
-    };
-
+    fetchTestTypes();
     fetchApplicants();
   }, []);
+
+  const fetchTestTypes = async () => {
+    try {
+      const snapshot = await getDocs(collection(db, 'test_types'));
+      const types = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setTestTypes(types);
+    } catch (error) {
+      logger.error('Error fetching test types:', error);
+    }
+  };
+
+  const fetchApplicants = async () => {
+    setLoading(true);
+    try {
+      // Obtener postulantes registrados
+      const postulanteRef = collection(db, 'postulante');
+      const postulanteSnapshot = await getDocs(postulanteRef);
+      
+      // Obtener respuestas de pruebas
+      const responsesRef = collection(db, 'responses');
+      const responsesSnapshot = await getDocs(responsesRef);
+      
+      // Crear mapa de respuestas por DNI
+      const responsesMap = new Map();
+      responsesSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.dni) {
+          responsesMap.set(data.dni, {
+            id: doc.id,
+            submittedAt: data.submittedAt,
+            aiAnalysis: data.aiAnalysis,
+            hasTest: true
+          });
+        }
+      });
+      
+      // Combinar datos
+      const applicantsData = postulanteSnapshot.docs.map(doc => {
+        const postulanteData = doc.data();
+        const dni = postulanteData.dni;
+        const responseData = responsesMap.get(dni);
+        
+        return {
+          id: responseData?.id || doc.id,
+          name: postulanteData.name || 'Sin nombre',
+          email: dni || 'Sin DNI',
+          appliedAt: responseData?.submittedAt || postulanteData.createdAt,
+          status: responseData ? 
+            (responseData.aiAnalysis?.finalAssessment?.riskLevel || 'completed') : 
+            'not_tested',
+          overallAIScore: responseData?.aiAnalysis?.serverResults?.length > 0 
+            ? Math.round(responseData.aiAnalysis.serverResults.reduce((sum, result) => sum + (result.score || 0), 0) / responseData.aiAnalysis.serverResults.length)
+            : 0,
+          hasTest: !!responseData
+        };
+      });
+      
+      setApplicants(applicantsData);
+    } catch (error) {
+      logger.error('Error fetching applicants:', error);
+      toast.error('Error al cargar postulantes. Reintentando...');
+      setTimeout(() => {
+        fetchApplicants();
+      }, 2000);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateApplicant = async (e) => {
+    e.preventDefault();
+    try {
+      await addDoc(collection(db, 'postulante'), {
+        ...createForm,
+        createdAt: serverTimestamp(),
+        createdBy: auth.currentUser.email
+      });
+      
+      toast.success('Postulante creado exitosamente');
+      setShowCreateForm(false);
+      setCreateForm({ dni: '', name: '', code: '' });
+      fetchApplicants();
+    } catch (error) {
+      logger.error('Error creating applicant:', error);
+      toast.error('Error al crear postulante');
+    }
+  };
 
   const filteredApplicants = applicants.filter(applicant => {
     if (filter === 'all') return true;
@@ -122,26 +155,41 @@ const ApplicantsPage = () => {
         <p className="text-gray-600">Gestión y análisis de postulantes</p>
       </div>
 
-      <div className="mb-6 flex items-center space-x-4">
-        <div className="flex items-center space-x-2">
-          <Filter size={20} className="text-gray-500" />
-          <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="form-input"
-            style={{ width: 'auto' }}
-          >
-            <option value="all">Todos</option>
-            <option value="not_tested">Sin Prueba</option>
-            <option value="completed">Con Prueba</option>
-            <option value="low">Bajo Riesgo</option>
-            <option value="high">Alto Riesgo</option>
-            <option value="high-ai">Score IA > 60%</option>
-          </select>
+      <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <Filter size={20} className="text-gray-500" />
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="form-input"
+              style={{ width: 'auto' }}
+            >
+              <option value="all">Todos</option>
+              <option value="not_tested">Sin Prueba</option>
+              <option value="completed">Con Prueba</option>
+              <option value="low">Bajo Riesgo</option>
+              <option value="high">Alto Riesgo</option>
+              <option value="high-ai">Score IA > 60%</option>
+            </select>
+          </div>
+          <span className="text-sm text-gray-500">
+            {filteredApplicants.length} de {applicants.length} postulantes
+          </span>
         </div>
-        <span className="text-sm text-gray-500">
-          {filteredApplicants.length} de {applicants.length} postulantes
-        </span>
+        
+        <button
+          onClick={() => {
+            setShowCreateForm(true);
+            setTimeout(() => {
+              document.getElementById('create-form')?.scrollIntoView({ behavior: 'smooth' });
+            }, 100);
+          }}
+          className="btn btn-primary flex items-center space-x-2"
+        >
+          <Plus size={16} />
+          <span>Nuevo Postulante</span>
+        </button>
       </div>
 
       <div className="bg-white shadow rounded-lg" style={{ overflow: 'hidden' }}>
@@ -216,6 +264,75 @@ const ApplicantsPage = () => {
           </div>
         )}
       </div>
+
+      {/* Formulario para crear postulante */}
+      {showCreateForm && (
+        <div id="create-form" className="mt-8 card">
+          <div className="bg-white rounded-lg p-6">
+            <h3 className="text-lg font-semibold mb-4">Nuevo Postulante</h3>
+            
+            <form onSubmit={handleCreateApplicant} className="space-y-4">
+              <div>
+                <label className="form-label">DNI</label>
+                <input
+                  type="text"
+                  required
+                  value={createForm.dni}
+                  onChange={(e) => setCreateForm({...createForm, dni: e.target.value})}
+                  className="form-input"
+                  placeholder="Ej: 46310482"
+                />
+              </div>
+              
+              <div>
+                <label className="form-label">Nombre Completo</label>
+                <input
+                  type="text"
+                  required
+                  value={createForm.name}
+                  onChange={(e) => setCreateForm({...createForm, name: e.target.value})}
+                  className="form-input"
+                  placeholder="Ej: Antonio Mendoza"
+                />
+              </div>
+              
+              <div>
+                <label className="form-label">Tipo de Prueba</label>
+                <select
+                  required
+                  value={createForm.code}
+                  onChange={(e) => setCreateForm({...createForm, code: e.target.value})}
+                  className="form-input"
+                >
+                  <option value="">Seleccionar tipo de prueba</option>
+                  {testTypes.map(type => (
+                    <option key={type.code} value={type.code}>
+                      {type.name} ({type.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="flex space-x-3 pt-4">
+                <button type="submit" className="btn btn-primary flex-1">
+                  Crear Postulante
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateForm(false);
+                    setCreateForm({ dni: '', name: '', code: '' });
+                  }}
+                  className="btn flex-1"
+                  style={{ backgroundColor: '#6b7280', color: 'white' }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
