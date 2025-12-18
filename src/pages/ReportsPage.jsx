@@ -100,8 +100,39 @@ const ReportsPage = () => {
         }))
       );
       
-      rankedResponses.sort((a, b) => b.totalScore - a.totalScore);
-      setResponses(rankedResponses);
+      // Obtener datos de postulantes para verificar estado
+      const postulanteSnapshot = await getDocs(collection(db, 'postulante'));
+      const postulanteMap = new Map();
+      postulanteSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (data.dni) {
+          postulanteMap.set(data.dni, {
+            status: data.status || 'enabled',
+            disabledReason: data.disabledReason
+          });
+        }
+      });
+      
+      // Filtrar: solo postulantes con pruebas y no deshabilitados
+      const filteredResponses = rankedResponses.filter(response => {
+        // Debe tener respuestas (ya tienen prueba por estar en responses)
+        if (!response.answers || response.answers.length === 0) return false;
+        
+        // Verificar estado del postulante
+        const postulanteData = postulanteMap.get(response.dni);
+        
+        // Si no existe en postulante, incluir (legacy)
+        if (!postulanteData) return true;
+        
+        // Si está deshabilitado, excluir
+        if (postulanteData.status === 'disabled') return false;
+        
+        // Si está habilitado o sin status, incluir
+        return true;
+      });
+      
+      filteredResponses.sort((a, b) => b.totalScore - a.totalScore);
+      setResponses(filteredResponses);
     } catch (error) {
       logger.error('Error fetching responses:', error);
       toast.error('Error al cargar respuestas');
